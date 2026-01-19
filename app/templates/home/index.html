@@ -1,0 +1,60 @@
+{% extends "base.html" %}
+{% block title %}Home · Finance Tracker{% endblock %}
+
+{% block content %}
+
+<section class="grid grid-cols-1 lg:grid-cols-2 gap-16 items-center mt-8">
+
+  <!-- LEFT: TEXT + BUTTON -->
+  <div>
+    <h1 class="text-4xl md:text-5xl font-semibold leading-tight">
+      <span class="text-amber-300">Financial freedom</span> starts here.
+    </h1>
+
+    <p class="mt-6 text-slate-300 max-w-xl">
+      Manage your money without stress. MoneyMap makes budgeting easy.
+      Track your expenses, set goals, and stay in control of your money.
+    </p>
+
+    <!-- BUTTON: слева + большой отступ -->
+    <div class="mt-14">
+      <a href="{{ url_for('expenses.index') }}"
+         class="inline-block rounded-full bg-brand/25 hover:bg-brand/35
+                text-slate-100 px-7 py-3 border border-brand/30 font-semibold">
+        Let’s budget!
+      </a>
+    </div>
+  </div>
+
+  <!-- RIGHT: IMAGE -->
+  <div class="flex justify-center lg:justify-end">
+    <img
+      src="{{ url_for('static', filename='img/piggy.png') }}"
+      alt="Piggy bank"
+      class="w-[320px] md:w-[420px] drop-shadow-xl"
+    />
+  </div>
+
+</section>
+
+<!-- AUTH BLOCK — без изменений
+<section class="mt-16">
+  <h2 class="text-2xl font-semibold mb-2">Welcome</h2>
+  <p class="text-slate-400">Track your personal finances securely.</p>
+
+  <div class="mt-6 grid grid-cols-1 sm:grid-cols-2 gap-4 max-w-xl">
+    <a href="{{ url_for('auth.register') }}"
+       class="rounded-2xl border border-slate-800 bg-slate-900 p-4 hover:bg-slate-800/50">
+      <h3 class="font-semibold">Register</h3>
+      <p class="text-sm text-slate-400">Create a new account</p>
+    </a>
+
+    <a href="{{ url_for('auth.login') }}"
+       class="rounded-2xl border border-slate-800 bg-slate-900 p-4 hover:bg-slate-800/50">
+      <h3 class="font-semibold">Login</h3>
+      <p class="text-sm text-slate-400">Access your finances</p>
+    </a>
+  </div>
+</section> -->
+
+{% endblock %}

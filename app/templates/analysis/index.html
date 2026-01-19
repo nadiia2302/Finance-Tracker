@@ -1,0 +1,358 @@
+{% extends "base.html" %}
+{% block title %}Analysis{% endblock %}
+
+{% block content %}
+<h1 class="text-3xl font-semibold mb-6">Analysis</h1>
+
+<!-- Filters -->
+<form method="get" class="rounded-2xl border border-slate-800 bg-slate-900 p-4 mb-6">
+  <div class="grid grid-cols-1 md:grid-cols-4 gap-3 items-end">
+    <label class="text-sm">
+      <span class="block mb-1 text-slate-300">Start</span>
+      <input type="date" name="start" value="{{ start_str or '' }}"
+             class="w-full rounded-xl bg-slate-800 border border-slate-700 px-3 py-2">
+    </label>
+
+    <label class="text-sm">
+      <span class="block mb-1 text-slate-300">End</span>
+      <input type="date" name="end" value="{{ end_str or '' }}"
+             class="w-full rounded-xl bg-slate-800 border border-slate-700 px-3 py-2">
+    </label>
+
+    <div class="flex gap-2">
+      <button type="submit"
+              class="rounded-xl bg-brand/20 hover:bg-brand/30 text-brand px-4 py-2 border border-brand/30">
+        Apply
+      </button>
+
+      <a href=""
+         class="rounded-xl bg-slate-800 hover:bg-slate-700 px-4 py-2 border border-slate-700">
+        Reset
+      </a>
+    </div>
+  </div>
+
+  <!-- KPI -->
+  <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mt-4">
+    <div class="rounded-xl bg-slate-800/40 border border-slate-700 p-4">
+      <div class="text-slate-400 text-sm">Total Income</div>
+      <div class="text-2xl font-semibold text-emerald-300">
+        + ${{ '%.2f' | format(total_income or 0) }}
+      </div>
+    </div>
+
+    <div class="rounded-xl bg-slate-800/40 border border-slate-700 p-4">
+      <div class="text-slate-400 text-sm">Total Expense</div>
+      <div class="text-2xl font-semibold text-rose-300">
+        - ${{ '%.2f' | format(total_expense_abs or 0) }}
+      </div>
+    </div>
+
+    <div class="rounded-xl bg-slate-800/40 border border-slate-700 p-4">
+      <div class="text-slate-400 text-sm">Net</div>
+      <div class="text-2xl font-semibold {% if (net_total or 0) >= 0 %}text-emerald-300{% else %}text-rose-300{% endif %}">
+        {% if (net_total or 0) >= 0 %}+{% else %}-{% endif %}
+        ${{ '%.2f' | format((net_total_abs or 0)) }}
+      </div>
+    </div>
+  </div>
+</form>
+
+<!-- Charts -->
+<section class="grid grid-cols-1 lg:grid-cols-2 gap-4">
+  <div class="rounded-2xl border border-slate-800 bg-slate-900 p-4">
+    <h3 class="font-semibold mb-2">Income vs Expense vs Net</h3>
+    <canvas id="barTotals" height="140"></canvas>
+  </div>
+
+  <div class="rounded-2xl border border-slate-800 bg-slate-900 p-4">
+    <h3 class="font-semibold mb-2">Net by Day</h3>
+    <canvas id="netByDay" height="140"></canvas>
+  </div>
+</section>
+
+<!-- AI Assistant -->
+<section class="mt-6 rounded-2xl border border-slate-800 bg-slate-900 p-4">
+  <div class="flex items-center justify-between gap-3 mb-3">
+    <h3 class="font-semibold">AI Assistant</h3>
+
+    <div class="flex gap-2">
+      <button id="aiExplainBtn"
+              type="button"
+              class="rounded-xl bg-slate-800 hover:bg-slate-700 px-3 py-2 border border-slate-700 text-sm">
+        Explain this report
+      </button>
+
+      <button id="aiClearBtn"
+              type="button"
+              class="rounded-xl bg-slate-800 hover:bg-slate-700 px-3 py-2 border border-slate-700 text-sm">
+        Clear
+      </button>
+    </div>
+  </div>
+
+  <div id="aiChatBox"
+       class="h-64 overflow-y-auto rounded-xl bg-slate-950/40 border border-slate-800 p-3 space-y-2 text-sm">
+    <div id="aiHint" class="text-slate-400">
+      Ask me about your income/expenses, trends, spikes, or this period.
+    </div>
+  </div>
+
+  <div class="mt-3 flex gap-2">
+    <input id="aiInput" type="text" placeholder="e.g. Why is net so high in December?"
+           class="flex-1 rounded-xl bg-slate-800 border border-slate-700 px-3 py-2">
+    <button id="aiSendBtn" type="button"
+            class="rounded-xl bg-brand/20 hover:bg-brand/30 text-brand px-4 py-2 border border-brand/30">
+      Send
+    </button>
+  </div>
+</section>
+
+<script>
+  // ===== SOFT COLORS =====
+  const GREEN_BG = "rgba(34, 197, 94, 0.65)";
+  const GREEN_BORDER = "rgba(34, 197, 94, 0.9)";
+  const RED_BG = "rgba(239, 68, 68, 0.65)";
+  const RED_BORDER = "rgba(239, 68, 68, 0.9)";
+
+  // ===== DATA FROM BACKEND =====
+  const totalIncome = {{ (total_income or 0) | tojson }};
+  const totalExpenseSigned = {{ (total_expense_signed or 0) | tojson }};
+  const totalExpenseAbs = {{ (total_expense_abs or 0) | tojson }};
+  const netSigned = {{ (net_total or 0) | tojson }};
+
+  const dayLabels = {{ (day_labels or []) | tojson }};
+  const dayNetSigned = {{ (day_net_signed or []) | tojson }};
+
+  // ===== GRAPH 1: Income vs Expense vs Net =====
+  const totalsSigned = [totalIncome, totalExpenseSigned, netSigned];
+  const totalsAbs = totalsSigned.map(v => Math.abs(v));
+  const totalsBg = [GREEN_BG, RED_BG, netSigned >= 0 ? GREEN_BG : RED_BG];
+  const totalsBorder = [GREEN_BORDER, RED_BORDER, netSigned >= 0 ? GREEN_BORDER : RED_BORDER];
+
+  new Chart(document.getElementById("barTotals"), {
+    type: "bar",
+    data: {
+      labels: ["Income", "Expense", "Net"],
+      datasets: [{
+        label: "Total",
+        data: totalsAbs,
+        backgroundColor: totalsBg,
+        borderColor: totalsBorder,
+        borderWidth: 1,
+        borderRadius: 6
+      }]
+    },
+    options: {
+      responsive: true,
+      scales: {
+        y: { beginAtZero: true, ticks: { callback: v => "$" + v } }
+      },
+      plugins: {
+        tooltip: {
+          callbacks: {
+            label: ctx => {
+              const real = totalsSigned[ctx.dataIndex];
+              const sign = real < 0 ? "-" : "+";
+              return `${sign} $${Math.abs(real).toFixed(2)}`;
+            }
+          }
+        }
+      }
+    }
+  });
+
+  // ===== GRAPH 2: Net by Day =====
+  const netAbsArr = dayNetSigned.map(v => Math.abs(v));
+  const netBg = dayNetSigned.map(v => v >= 0 ? GREEN_BG : RED_BG);
+  const netBorder = dayNetSigned.map(v => v >= 0 ? GREEN_BORDER : RED_BORDER);
+
+  new Chart(document.getElementById("netByDay"), {
+    type: "bar",
+    data: {
+      labels: dayLabels,
+      datasets: [{
+        label: "Net",
+        data: netAbsArr,
+        backgroundColor: netBg,
+        borderColor: netBorder,
+        borderWidth: 1,
+        borderRadius: 6
+      }]
+    },
+    options: {
+      responsive: true,
+      scales: {
+        y: { beginAtZero: true, ticks: { callback: v => "$" + v } }
+      },
+      plugins: {
+        tooltip: {
+          callbacks: {
+            label: ctx => {
+              const real = dayNetSigned[ctx.dataIndex];
+              const sign = real < 0 ? "-" : "+";
+              return `${sign} $${Math.abs(real).toFixed(2)}`;
+            }
+          }
+        }
+      }
+    }
+  });
+
+  // ===== AI ASSISTANT SCRIPT =====
+  const analysisContext = {
+    period: {
+      start: {{ (start_str or "") | tojson }},
+      end: {{ (end_str or "") | tojson }},
+    },
+    totals: {
+      income: totalIncome,
+      expenseAbs: totalExpenseAbs,
+      expenseSigned: totalExpenseSigned,
+      netSigned: netSigned,
+    },
+    netByDay: {
+      labels: dayLabels,
+      netSigned: dayNetSigned,
+    }
+  };
+
+  // --- Chat persistence (localStorage) ---
+  const CHAT_STORAGE_KEY = "analysis_ai_chat_v1";
+
+  function saveChat() {
+    const box = document.getElementById("aiChatBox");
+    if (!box) return;
+
+    const items = [];
+    box.querySelectorAll("[data-role]").forEach(el => {
+      items.push({
+        role: el.getAttribute("data-role"),
+        text: el.getAttribute("data-text") || ""
+      });
+    });
+
+    localStorage.setItem(CHAT_STORAGE_KEY, JSON.stringify(items));
+  }
+
+  function loadChat() {
+    const raw = localStorage.getItem(CHAT_STORAGE_KEY);
+    if (!raw) return;
+
+    let items = [];
+    try { items = JSON.parse(raw) || []; } catch { items = []; }
+    if (!items.length) return;
+
+    const hint = document.getElementById("aiHint");
+    if (hint) hint.remove();
+
+    for (const m of items) {
+      addMsg(m.role, m.text, false);
+    }
+  }
+
+  function clearChatUI() {
+    const box = document.getElementById("aiChatBox");
+    if (!box) return;
+    box.innerHTML = `
+      <div id="aiHint" class="text-slate-400">
+        Ask me about your income/expenses, trends, spikes, or this period.
+      </div>
+    `;
+  }
+
+  function removeHint() {
+    const hint = document.getElementById("aiHint");
+    if (hint) hint.remove();
+  }
+
+  // addMsg(role, text, doSave=true)
+  function addMsg(role, text, doSave = true) {
+    const box = document.getElementById("aiChatBox");
+    if (!box) return;
+
+    removeHint();
+
+    const wrap = document.createElement("div");
+    wrap.className = role === "user" ? "text-right" : "text-left";
+    wrap.setAttribute("data-role", role);
+    wrap.setAttribute("data-text", text);
+
+    const bubble = document.createElement("span");
+    bubble.className =
+      "inline-block rounded-xl px-3 py-2 border text-sm " +
+      (role === "user"
+        ? "bg-slate-800 border-slate-700 text-slate-100"
+        : "bg-slate-700/40 border-slate-700 text-slate-100");
+
+    bubble.textContent = text;
+    wrap.appendChild(bubble);
+
+    box.appendChild(wrap);
+    box.scrollTop = box.scrollHeight;
+
+    if (doSave) saveChat();
+  }
+
+  async function askAI(message) {
+    addMsg("user", message);
+
+    try {
+      const res = await fetch("/analysis/ai", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          message: message,
+          context: analysisContext
+        })
+      });
+
+      let data = null;
+      try { data = await res.json(); } catch { data = null; }
+
+      if (!res.ok) {
+        addMsg("assistant", data?.error || `Server error: ${res.status}`);
+        return;
+      }
+
+      addMsg("assistant", data?.reply || "No reply");
+    } catch (e) {
+      addMsg("assistant", "Network error. Is the server running?");
+    }
+  }
+
+  function sendFromInput() {
+    const input = document.getElementById("aiInput");
+    const msg = input?.value?.trim();
+    if (!msg) return;
+    input.value = "";
+    askAI(msg);
+  }
+
+  document.getElementById("aiSendBtn")?.addEventListener("click", sendFromInput);
+
+  document.getElementById("aiInput")?.addEventListener("keydown", (e) => {
+    if (e.key === "Enter") {
+      e.preventDefault();
+      sendFromInput();
+    }
+  });
+
+  document.getElementById("aiExplainBtn")?.addEventListener("click", () => {
+    const s = analysisContext.period.start || "N/A";
+    const e = analysisContext.period.end || "N/A";
+    askAI(`Explain my report for period ${s} to ${e}. Highlight trends and anomalies and give 3 practical tips.`);
+  });
+
+  document.getElementById("aiClearBtn")?.addEventListener("click", () => {
+    localStorage.removeItem(CHAT_STORAGE_KEY);
+    clearChatUI();
+  });
+
+  // Load saved chat on refresh
+  document.addEventListener("DOMContentLoaded", () => {
+    loadChat();
+  });
+</script>
+
+{% endblock %}

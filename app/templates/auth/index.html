@@ -1,0 +1,23 @@
+{% extends "base.html" %}
+{% block title %}Welcome{% endblock %}
+
+{% block content %}
+<h1 class="text-3xl font-semibold mb-2">Welcome</h1>
+<p class="text-slate-400 mb-6">
+  Track your personal finances securely.
+</p>
+
+<div class="grid grid-cols-1 sm:grid-cols-2 gap-4 max-w-xl">
+  <a href="{{ url_for('auth.register') }}"
+     class="rounded-xl border border-slate-800 bg-slate-900 p-4 hover:bg-slate-800/50">
+    <h2 class="font-semibold">Register</h2>
+    <p class="text-sm text-slate-400">Create a new account</p>
+  </a>
+
+  <a href="{{ url_for('auth.login') }}"
+     class="rounded-xl border border-slate-800 bg-slate-900 p-4 hover:bg-slate-800/50">
+    <h2 class="font-semibold">Login</h2>
+    <p class="text-sm text-slate-400">Access your expenses</p>
+  </a>
+</div>
+{% endblock %}

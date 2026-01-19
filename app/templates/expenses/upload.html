@@ -1,0 +1,9 @@
+{% extends "base.html" %}
+{% block content %}
+
+<form action="{{ url_for('expenses.upload') }}" method="POST" enctype="multipart/form-data">
+  <input type="file" name="file" required>
+  <button type="submit">Upload</button>
+</form>
+
+{% endblock %}
